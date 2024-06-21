@@ -1,0 +1,34 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy.stats as stats
+from scipy.stats import gamma, kstest, anderson
+
+
+file_path = '.xlsx'
+df = pd.read_excel(file_path)
+data = df.iloc[0, 2:].dropna()
+
+plt.hist(data, bins=30, density=True, alpha=0.5, color='g')
+a, loc, scale = gamma.fit(data)
+gamma_fit = gamma(a, loc, scale).pdf(np.linspace(min(data), max(data), 100))
+plt.plot(np.linspace(min(data), max(data), 100), gamma_fit, 'r-')
+plt.title('Histogram and Gamma Distribution Fit')
+plt.show()
+
+
+stats.probplot(data, dist="gamma", sparams=(a,), plot=plt)
+plt.title('Q-Q Plot')
+plt.show()
+
+
+# Kolmogorov-Smirnov test
+ks_stat, ks_p = kstest(data, 'gamma', args=(a, loc, scale))
+print(f"Kolmogorov-Smirnov Test: Statistic={ks_stat}, P-value={ks_p}")
+
+
+
+
+gamma_pdf = gamma(a, loc, scale).pdf(data)
+mse = np.mean((data - gamma_pdf) ** 2)
+print(f"Mean Squared Error: {mse}")

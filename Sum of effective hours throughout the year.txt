@@ -1,0 +1,37 @@
+import os
+import rasterio
+import numpy as np
+
+input_folder = ''
+output_folder = ''
+
+
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
+
+
+sum_array = None
+
+
+for filename in os.listdir(input_folder):
+    if filename.endswith('.tif'):
+        file_path = os.path.join(input_folder, filename)
+        with rasterio.open(file_path) as src:
+            data = src.read(1) 
+
+    
+            if sum_array is None:
+                sum_array = data.astype(np.float32)
+                profile = src.profile
+            else:
+                sum_array += data.astype(np.float32)
+
+
+profile.update(dtype=rasterio.float32)
+
+
+output_file = os.path.join(output_folder, 'total_sum.tif')
+with rasterio.open(output_file, 'w', **profile) as dst:
+    dst.write(sum_array, 1)
+
+print("success")

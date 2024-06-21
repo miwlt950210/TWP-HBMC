@@ -1,0 +1,48 @@
+import os
+import geopandas as gpd
+import rasterio
+from rasterio.mask import mask
+from tqdm import tqdm
+
+def clip_raster_with_shapefile(raster_path, shapefile_path, output_path):
+ 
+    shapes = gpd.read_file(shapefile_path)
+
+ 
+    with rasterio.open(raster_path) as src:
+        # set nodata
+        nodata_val = src.nodata if src.nodata is not None else -9999
+
+        out_image, out_transform = mask(src, shapes.geometry, crop=True, nodata=nodata_val)
+        out_meta = src.meta.copy()
+
+
+    out_meta.update({"driver": "GTiff",
+                     "height": out_image.shape[1],
+                     "width": out_image.shape[2],
+                     "transform": out_transform,
+                     "nodata": nodata_val})  
+
+  
+    with rasterio.open(output_path, "w", **out_meta) as dest:
+        dest.write(out_image)
+
+# 设置输入输出文件夹和形状文件
+input_folder = ''  
+output_folder = ''  
+shapefile_path = ""
+
+
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
+
+
+tiff_files = [f for f in os.listdir(input_folder) if f.endswith('.tif')]
+
+
+for filename in tqdm(tiff_files, desc="Clipping TIF files"):
+    raster_path = os.path.join(input_folder, filename)
+    output_path = os.path.join(output_folder, filename)
+    clip_raster_with_shapefile(raster_path, shapefile_path, output_path)
+
+print("success")

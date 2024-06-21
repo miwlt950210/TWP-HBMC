@@ -1,0 +1,24 @@
+import pandas as pd
+from scipy.integrate import quad
+import numpy as np
+from tqdm import tqdm
+
+def calculate_integral(k, λ, ρ=1.225, lower_limit=2.5, upper_limit=25):
+    def f(v):
+        return (k / λ) * (v / λ)**(k - 1) * np.exp(-(v / λ)**k)
+    def integrand(v):
+        return 0.5 * ρ * v**3 * f(v)
+    result, _ = quad(integrand, lower_limit, upper_limit)
+    return result
+
+
+file_path = '.csv'
+data = pd.read_csv(file_path)
+
+tqdm.pandas(desc="Calculating Integrals")
+
+data['integral'] = data.progress_apply(lambda row: calculate_integral(row['shape'], row['scale']), axis=1)
+
+
+new_file_path = '.csv'
+data.to_csv(new_file_path, index=False)

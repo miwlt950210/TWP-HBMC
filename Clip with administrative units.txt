@@ -1,0 +1,45 @@
+import geopandas as gpd
+import os
+import re
+
+
+
+def sanitize_column_names(gdf):
+
+    sanitized_columns = [re.sub(r'\W|^(?=\d)', '_', col.encode('ascii', 'ignore').decode('ascii')) for col in
+                         gdf.columns]
+
+ 
+    unique_columns = []
+    for col in sanitized_columns:
+        new_col = col
+        count = 1
+        while new_col in unique_columns or not new_col:
+            new_col = f"{col}_{count}"
+            count += 1
+        unique_columns.append(new_col)
+
+    gdf.columns = unique_columns
+    return gdf
+
+
+
+shapefile_path = r''
+gdf = gpd.read_file(shapefile_path)
+
+
+unique_values = gdf['biaozhu'].unique()
+
+
+output_dir = r''
+os.makedirs(output_dir, exist_ok=True)
+
+
+for value in unique_values:
+    subset_gdf = gdf[gdf['biaozhu'] == value]
+    subset_gdf = sanitize_column_names(subset_gdf)  
+    output_path = os.path.join(output_dir, f"{value}.shp")
+    subset_gdf.to_file(output_path)  
+
+print("Shapefiles have been split and saved successfully.")
+

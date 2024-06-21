@@ -1,0 +1,30 @@
+import pandas as pd
+
+
+file_path = r'.csv'
+data = pd.read_csv(file_path)
+
+
+category_counts = data['City'].value_counts(dropna=False)
+category_counts_df = category_counts.reset_index()
+category_counts_df.columns = ['City', 'Total_Count']
+
+
+ranges = [0, 4e9, 8e9, 15e9, 30e9, float('inf')]
+range_labels = ['<4e9', '4e9-8e9', '8e9-15e9', '15e9-30e9', '>30e9']
+data['WPCC_range'] = pd.cut(data['WPCC'], bins=ranges, labels=range_labels, right=False)
+
+
+range_counts = data.groupby('City')['WPCC_range'].value_counts(dropna=False).unstack(fill_value=0)
+
+
+proportions = range_counts.divide(range_counts.sum(axis=1), axis=0)
+
+final_output = range_counts.merge(proportions, on='City', suffixes=('_Count', '_Ratio'))
+final_output = final_output.merge(category_counts_df, on='City')
+
+
+output_path = r'.csv'
+final_output.to_csv(output_path, index=True)
+
+print("Results have been saved to:", output_path)

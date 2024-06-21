@@ -1,0 +1,25 @@
+
+file_path = '.csv'
+data = pd.read_csv(file_path)
+
+
+results = pd.DataFrame(columns=['Latitude', 'Longitude', 'shape', 'scale', 'statistic', 'P Value'])
+
+for index, row in tqdm(data.iterrows(), total=len(data), desc="Processing"):
+    if index == 0:  
+        continue
+    wind_speeds = row[2:].values 
+    if len(wind_speeds) > 0:
+      
+        params = weibull_min.fit(wind_speeds, floc=0)
+        c, loc, scale = params
+
+   
+        ks_statistic, ks_pvalue = kstest(wind_speeds, 'weibull_min', args=(c, loc, scale))
+
+       
+        results.loc[index] = [row['Latitude'], row['Longitude'], c, scale, ks_statistic, ks_pvalue]
+
+
+output_file = '.csv'
+results.to_csv(output_file, index=False)

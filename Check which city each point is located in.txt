@@ -1,0 +1,42 @@
+import pandas as pd
+import geopandas as gpd
+from shapely.geometry import Point
+import os
+from tqdm import tqdm
+
+
+csv_path = r'.csv'
+try:
+    data = pd.read_csv(csv_path, encoding='utf-8')  
+except UnicodeDecodeError:
+    data = pd.read_csv(csv_path, encoding='ISO-8859-1')
+
+
+data['geometry'] = [Point(xy) for xy in zip(data['Longitude'], data['Latitude'])]
+geo_data = gpd.GeoDataFrame(data, geometry='geometry', crs='EPSG:4326')
+
+
+shp_dir = r'H:\7_bu\3_2022_tif_1.3895V0_clip_establishnewspeedforHBMC\city\python'
+shp_files = [os.path.join(shp_dir, file) for file in os.listdir(shp_dir) if file.endswith('.shp')]
+cities = pd.concat([gpd.read_file(shp) for shp in tqdm(shp_files, desc="Loading shapefiles")], ignore_index=True)
+
+
+geo_data = geo_data.to_crs(cities.crs)
+
+
+geo_data['buffered_geometry'] = geo_data.geometry.buffer(0.0001)  
+
+geo_data.set_geometry('buffered_geometry', inplace=True)
+
+
+result = gpd.sjoin(geo_data, cities[['geometry', 'biaozhu']], how="left", predicate='intersects')
+result.rename(columns={'biaozhu': 'City'}, inplace=True)
+
+
+result.drop(columns=['geometry', 'index_right', 'buffered_geometry'], inplace=True)
+output_csv_path = r'.csv'
+result.to_csv(output_csv_path, index=False)
+
+print("Processing completed. Updated CSV file is saved.")
+
+
