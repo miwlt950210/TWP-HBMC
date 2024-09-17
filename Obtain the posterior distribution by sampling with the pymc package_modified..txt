@@ -1,0 +1,103 @@
+import pandas as pd
+import numpy as np
+import pymc3 as pm
+import arviz as az
+import time
+from scipy.special import polygamma
+
+if __name__ == '__main__':
+    # Start timing
+    start_time = time.time()
+
+    # Read data
+    data = pd.read_csv('data.csv')
+    
+    # Prepare DataFrame to save results
+    results = pd.DataFrame(columns=[
+        'Latitude', 'Longitude',
+        'k_mean', 'k_std', 'k_median', 'k_mean_in_hdi', 'k_hdi_2.5%', 'k_hdi_97.5%',
+        'lam_mean', 'lam_std', 'lam_median', 'lam_mean_in_hdi', 'lam_hdi_2.5%', 'lam_hdi_97.5%'
+    ])
+
+    # Get total number of rows
+    total_rows = len(data)
+
+    # Build Bayesian model and analyze each row of data
+    for index, row in data.iterrows():
+        if index == 0:  # Skip the first row (header)
+            continue
+
+        print(f'Processing row {index}...')
+
+        observed_data = row[2:].values  # Extract observational data
+        
+        # Preliminary estimation of observed_data
+        # Use methods like method of moments or maximum likelihood estimation to get initial values for k and λ
+        # Here we use placeholders; you need to calculate based on actual data
+        initial_k = np.mean(observed_data)
+        initial_lam = np.std(observed_data)
+
+        # Calculate standard deviations for α_k and α_λ
+        alpha_k_sd = np.sqrt(polygamma(1, initial_k))
+        alpha_lam_sd = np.sqrt(polygamma(1, initial_lam))
+
+        # Set β_k and β_λ to 1
+        beta_k_value = 1.0
+        beta_lam_value = 1.0
+
+        # Establish Bayesian model
+        with pm.Model() as model:
+            # Define prior distributions for parameters
+            alpha_k = pm.Normal('alpha_k', mu=initial_k, sd=alpha_k_sd)
+            beta_k = pm.Deterministic('beta_k', beta_k_value)
+
+            alpha_lam = pm.Normal('alpha_lam', mu=initial_lam, sd=alpha_lam_sd)
+            beta_lam = pm.Deterministic('beta_lam', beta_lam_value)
+
+            k = pm.Gamma('k', alpha=alpha_k, beta=beta_k)  # Gamma prior distribution for k
+            lam = pm.Gamma('lam', alpha=alpha_lam, beta=beta_lam)  # Gamma prior distribution for λ
+
+            # Define likelihood function
+            obs = pm.Weibull('obs', alpha=k, beta=lam, observed=observed_data)
+
+            # Run inference
+            trace = pm.sample(5000, tune=5000, step=pm.HamiltonianMC(target_accept=0.95), cores=1)
+
+        # Extract parameter features of the posterior distribution
+        summary = az.summary(trace, hdi_prob=0.95)
+
+        # Calculate medians
+        k_median = np.median(trace['k'])
+        lam_median = np.median(trace['lam'])
+
+        # Calculate 95% HDI
+        hdi = az.hdi(trace, hdi_prob=0.95)
+
+        # Samples within 95% HDI
+        k_samples_in_hdi = trace['k'][(trace['k'] >= hdi.loc['k', 'lower']) & (trace['k'] <= hdi.loc['k', 'higher'])]
+        lam_samples_in_hdi = trace['lam'][(trace['lam'] >= hdi.loc['lam', 'lower']) & (trace['lam'] <= hdi.loc['lam', 'higher'])]
+
+        # Calculate means within 95% HDI
+        k_mean_in_hdi = np.mean(k_samples_in_hdi)
+        lam_mean_in_hdi = np.mean(lam_samples_in_hdi)
+        
+        # Append results to DataFrame
+        results = results.append({
+            'Latitude': row['Latitude'], 'Longitude': row['Longitude'],
+            'k_mean': summary.loc['k', 'mean'], 'k_std': summary.loc['k', 'sd'], 'k_median': k_median,
+            'k_mean_in_hdi': k_mean_in_hdi, 'k_hdi_2.5%': hdi.loc['k', 'lower'], 'k_hdi_97.5%': hdi.loc['k', 'higher'],
+            'lam_mean': summary.loc['lam', 'mean'], 'lam_std': summary.loc['lam', 'sd'], 'lam_median': lam_median,
+            'lam_mean_in_hdi': lam_mean_in_hdi, 'lam_hdi_2.5%': hdi.loc['lam', 'lower'], 'lam_hdi_97.5%': hdi.loc['lam', 'higher']
+        }, ignore_index=True)
+
+        # Calculate and print processing time for each row
+        elapsed_time = time.time() - start_time
+        print(f'Row {index} processed in {elapsed_time} seconds.')
+
+        # Calculate and print progress
+        progress = (index + 1) / total_rows * 100
+        print(f'Progress: {progress}%')
+
+    # Save results to CSV file
+    results.to_csv('results.csv', index=False)
+
